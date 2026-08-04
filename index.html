@@ -470,6 +470,7 @@ let state = {
 /* ---------------- Supabase Storage ---------------- */
 const SB_URL = 'https://uaeiqzprbccfavexopix.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVhZWlxenByYmNjZmF2ZXhvcGl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4MjQxNTgsImV4cCI6MjEwMTQwMDE1OH0.MMuFesSru4DfwrmrdPn88JgNR1DFJIS0KJFK6iPPuD0';
+const SB_TABLE = 'Prestacao';
 const memoryStore = {};
 const hasCloudStorage = true;
 
@@ -975,6 +976,28 @@ async function boot(){
 }
 
 boot();
+
+// ── ATUALIZAÇÃO AUTOMÁTICA (a cada 3s) ───────────────────
+setInterval(async () => {
+  // Não atualiza se houver popover aberto (usuário em edição)
+  if (state.activePopover) return;
+
+  // Salva estado atual das abas abertas
+  const abasAbertas = new Set(state.openAccounts);
+  const empresaAtual = state.company;
+  const buscaAtual = state.search;
+
+  // Busca dados novos silenciosamente
+  await loadCompany('IMN');
+  await loadCompany('AMIP');
+
+  // Restaura estado — não fecha nada que estava aberto
+  state.openAccounts = abasAbertas;
+  state.company = empresaAtual;
+  state.search = buscaAtual;
+
+  renderAll();
+}, 3000);
 </script>
 </body>
 </html>
