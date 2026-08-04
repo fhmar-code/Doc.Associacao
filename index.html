@@ -552,18 +552,25 @@ async function loadCompany(company){
   const res = await storageGet("dados_" + company, true);
   const novosDados = res && res.value ? JSON.parse(res.value) : {};
 
-  // Merge: mantém dados locais que ainda não foram salvos
-  // só sobrescreve se não houver dados locais para aquela chave
-  if (!state.data[company] || Object.keys(state.data[company]).length === 0) {
-    state.data[company] = novosDados;
-  } else {
-    // Merge suave: dados do servidor só entram se a chave não existir localmente
-    Object.keys(novosDados).forEach(k => {
-      if (!state.data[company][k]) {
-        state.data[company][k] = novosDados[k];
-      }
-    });
-  }
+  const dadosLocais = state.data[company] || {};
+
+  // Merge: para cada chave, mantém o dado mais recente pelo updatedAt
+  const merged = Object.assign({}, novosDados);
+  Object.keys(dadosLocais).forEach(k => {
+    const local = dadosLocais[k];
+    const remoto = novosDados[k];
+    if (!remoto) {
+      // Só existe local — mantém
+      merged[k] = local;
+    } else {
+      // Compara datas — mantém o mais recente
+      const dtLocal  = local && local.updatedAt  ? new Date(local.updatedAt)  : new Date(0);
+      const dtRemoto = remoto && remoto.updatedAt ? new Date(remoto.updatedAt) : new Date(0);
+      merged[k] = dtLocal > dtRemoto ? local : remoto;
+    }
+  });
+
+  state.data[company] = merged;
 
   const cRes = await storageGet("contas_extra_" + company, true);
   state.customAccounts[company] = cRes && cRes.value ? JSON.parse(cRes.value) : [];
@@ -1031,7 +1038,7 @@ setInterval(async () => {
   state.search = buscaAtual;
 
   renderAll();
-}, 3000);
+}, 10000);
 </script>
 </body>
 </html>
