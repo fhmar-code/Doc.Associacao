@@ -978,9 +978,30 @@ async function boot(){
 boot();
 
 // ── ATUALIZAÇÃO AUTOMÁTICA (a cada 3s) ───────────────────
+let usuarioInteragindo = false;
+let timerInteracao = null;
+
+// Detecta qualquer interação do usuário
+document.addEventListener('mousedown', () => {
+  usuarioInteragindo = true;
+  clearTimeout(timerInteracao);
+  // Libera atualização 5 segundos após última interação
+  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 5000);
+});
+document.addEventListener('keydown', () => {
+  usuarioInteragindo = true;
+  clearTimeout(timerInteracao);
+  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 5000);
+});
+document.addEventListener('touchstart', () => {
+  usuarioInteragindo = true;
+  clearTimeout(timerInteracao);
+  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 5000);
+});
+
 setInterval(async () => {
-  // Não atualiza se houver popover aberto (usuário em edição)
-  if (state.activePopover) return;
+  // Não atualiza se usuário estiver interagindo ou com popover aberto
+  if (usuarioInteragindo || state.activePopover) return;
 
   // Salva estado atual das abas abertas
   const abasAbertas = new Set(state.openAccounts);
