@@ -550,7 +550,20 @@ function getCell(company, key){
 
 async function loadCompany(company){
   const res = await storageGet("dados_" + company, true);
-  state.data[company] = res && res.value ? JSON.parse(res.value) : {};
+  const novosDados = res && res.value ? JSON.parse(res.value) : {};
+
+  // Merge: mantém dados locais que ainda não foram salvos
+  // só sobrescreve se não houver dados locais para aquela chave
+  if (!state.data[company] || Object.keys(state.data[company]).length === 0) {
+    state.data[company] = novosDados;
+  } else {
+    // Merge suave: dados do servidor só entram se a chave não existir localmente
+    Object.keys(novosDados).forEach(k => {
+      if (!state.data[company][k]) {
+        state.data[company][k] = novosDados[k];
+      }
+    });
+  }
 
   const cRes = await storageGet("contas_extra_" + company, true);
   state.customAccounts[company] = cRes && cRes.value ? JSON.parse(cRes.value) : [];
@@ -985,18 +998,18 @@ let timerInteracao = null;
 document.addEventListener('mousedown', () => {
   usuarioInteragindo = true;
   clearTimeout(timerInteracao);
-  // Libera atualização 5 segundos após última interação
-  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 5000);
+  // Libera atualização 15 segundos após última interação
+  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 15000);
 });
 document.addEventListener('keydown', () => {
   usuarioInteragindo = true;
   clearTimeout(timerInteracao);
-  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 5000);
+  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 15000);
 });
 document.addEventListener('touchstart', () => {
   usuarioInteragindo = true;
   clearTimeout(timerInteracao);
-  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 5000);
+  timerInteracao = setTimeout(() => { usuarioInteragindo = false; }, 15000);
 });
 
 setInterval(async () => {
