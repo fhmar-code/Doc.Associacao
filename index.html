@@ -906,13 +906,45 @@ document.getElementById("btnCliente").addEventListener("click", () => {
 
 document.getElementById("btnFinanceiro").addEventListener("click", () => {
   if(state.isAdmin){ renderRoleUI(); return; }
-  const pwd = prompt("Senha do modo contador/confirmação:");
-  if(pwd === ADMIN_PASSWORD){
-    state.isAdmin = true;
-    renderRoleUI();
-  } else if(pwd !== null){
-    alert("Senha incorreta.");
-  }
+  // Modal de senha personalizado (sem mostrar a senha)
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:32px 28px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:Inter,sans-serif">
+      <div style="font-size:24px;margin-bottom:12px">🔒</div>
+      <div style="font-size:15px;font-weight:700;color:#182233;margin-bottom:6px">Modo Contador</div>
+      <div style="font-size:12px;color:#5C6675;margin-bottom:18px">Digite a senha para continuar</div>
+      <input id="contadorPwdInput" type="password" placeholder="••••••••"
+        style="width:100%;padding:10px 14px;border:1px solid #CBD2DC;border-radius:8px;font-size:14px;outline:none;letter-spacing:3px;box-sizing:border-box;margin-bottom:8px">
+      <div id="contadorPwdErro" style="font-size:11px;color:#e53e3e;min-height:16px;margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px">
+        <button id="contadorPwdCancel" style="flex:1;padding:10px;border:1px solid #CBD2DC;border-radius:8px;background:#fff;color:#5C6675;font-size:13px;cursor:pointer;font-family:inherit">Cancelar</button>
+        <button id="contadorPwdOk" style="flex:1;padding:10px;border:none;border-radius:8px;background:#17495F;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Confirmar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const input = modal.querySelector('#contadorPwdInput');
+  const erro = modal.querySelector('#contadorPwdErro');
+  setTimeout(() => input.focus(), 100);
+
+  modal.querySelector('#contadorPwdCancel').onclick = () => document.body.removeChild(modal);
+
+  const verificar = () => {
+    if(input.value === ADMIN_PASSWORD){
+      document.body.removeChild(modal);
+      state.isAdmin = true;
+      renderRoleUI();
+    } else {
+      erro.textContent = '❌ Senha incorreta. Tente novamente.';
+      input.value = '';
+      input.style.borderColor = '#e53e3e';
+      input.focus();
+    }
+  };
+
+  modal.querySelector('#contadorPwdOk').onclick = verificar;
+  input.addEventListener('keydown', e => { if(e.key === 'Enter') verificar(); });
 });
 
 document.getElementById("search").addEventListener("input", (e) => {
