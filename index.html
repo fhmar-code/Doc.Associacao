@@ -390,6 +390,7 @@
       <button class="role-btn active" id="btnCliente">Sou Cliente</button>
       <button class="role-btn" id="btnFinanceiro">Modo Contador/Confirmação</button>
       <div class="role-status" id="roleStatus"><span class="dot"></span> Modo cliente</div>
+      <button class="role-btn" onclick="abrirModalRelatorio()" style="margin-left:auto">🖨️ Relatório</button>
     </div>
   </div>
 </div>
@@ -1028,6 +1029,175 @@ async function boot(){
 }
 
 boot();
+
+// ── RELATÓRIO IMPRESSÃO ───────────────────────────────────
+function abrirModalRelatorio() {
+  const modal = document.createElement('div');
+  modal.id = 'relatorioModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:32px 28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:Inter,sans-serif">
+      <div style="font-size:24px;margin-bottom:10px">🖨️</div>
+      <div style="font-size:15px;font-weight:700;color:#182233;margin-bottom:6px">Imprimir Relatório</div>
+      <div style="font-size:12px;color:#5C6675;margin-bottom:20px">Escolha qual empresa deseja imprimir:</div>
+
+      <div onclick="gerarRelatorio('IMN')" style="display:flex;align-items:center;gap:14px;border:1px solid #E1E5EB;border-radius:10px;padding:14px;cursor:pointer;margin-bottom:10px;transition:all 0.2s" onmouseover="this.style.borderColor='#17495F'" onmouseout="this.style.borderColor='#E1E5EB'">
+        <div style="font-size:20px">🏦</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#182233">IMN</div>
+          <div style="font-size:11px;color:#5C6675">Relatório completo de todas as contas</div>
+        </div>
+      </div>
+
+      <div onclick="gerarRelatorio('AMIP')" style="display:flex;align-items:center;gap:14px;border:1px solid #E1E5EB;border-radius:10px;padding:14px;cursor:pointer;margin-bottom:10px;transition:all 0.2s" onmouseover="this.style.borderColor='#17495F'" onmouseout="this.style.borderColor='#E1E5EB'">
+        <div style="font-size:20px">🏦</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#182233">AMIP</div>
+          <div style="font-size:11px;color:#5C6675">Relatório completo de todas as contas</div>
+        </div>
+      </div>
+
+      <div onclick="gerarRelatorio('AMBOS')" style="display:flex;align-items:center;gap:14px;border:1px solid #E1E5EB;border-radius:10px;padding:14px;cursor:pointer;margin-bottom:20px;transition:all 0.2s" onmouseover="this.style.borderColor='#17495F'" onmouseout="this.style.borderColor='#E1E5EB'">
+        <div style="font-size:20px">📋</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#182233">IMN + AMIP</div>
+          <div style="font-size:11px;color:#5C6675">Relatório completo das duas empresas</div>
+        </div>
+      </div>
+
+      <button onclick="document.body.removeChild(document.getElementById('relatorioModal'))" style="width:100%;padding:10px;border:1px solid #E1E5EB;border-radius:8px;background:#fff;color:#5C6675;font-size:13px;cursor:pointer;font-family:inherit">Cancelar</button>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target === modal) document.body.removeChild(modal); });
+}
+
+function gerarRelatorio(empresa) {
+  document.body.removeChild(document.getElementById('relatorioModal'));
+
+  const empresas = empresa === 'AMBOS' ? ['IMN','AMIP'] : [empresa];
+  const agora = new Date().toLocaleDateString('pt-BR', {day:'2-digit',month:'long',year:'numeric'});
+
+  const statusColor = (s) => {
+    if(s === 'VALIDADO')  return '#1D6E48';
+    if(s === 'ENVIADO')   return '#8A6415';
+    if(s === 'INVALIDO')  return '#9E2E2E';
+    if(s === 'NAO_TEM')   return '#4B5461';
+    return '#9CA3AF';
+  };
+  const statusBg = (s) => {
+    if(s === 'VALIDADO')  return '#D1FAE5';
+    if(s === 'ENVIADO')   return '#FEF3C7';
+    if(s === 'INVALIDO')  return '#FEE2E2';
+    if(s === 'NAO_TEM')   return '#F1F5F9';
+    return '#F9FAFB';
+  };
+  const statusLabel = (s) => {
+    if(s === 'VALIDADO')  return 'Validado';
+    if(s === 'ENVIADO')   return 'Enviado';
+    if(s === 'INVALIDO')  return 'Inválido';
+    if(s === 'NAO_TEM')   return 'Inexistente';
+    return 'Pendente';
+  };
+
+  let corpoHTML = '';
+
+  empresas.forEach(emp => {
+    const accounts = getAccounts(emp);
+    const counts = computeSummary(emp);
+    const total = accounts.length * DOCS.length * MONTHS.length;
+
+    corpoHTML += `
+      <div style="margin-bottom:32px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:10px;border-bottom:3px solid #17495F">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#17495F;text-transform:uppercase">PAINEL IMN & AMIP</div>
+            <h2 style="font-size:18px;font-weight:800;color:#182233;margin:4px 0">${emp}</h2>
+          </div>
+          <div style="text-align:right;font-size:11px;color:#5C6675">${agora}</div>
+        </div>
+
+        <!-- RESUMO -->
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px">
+          ${[
+            {l:'Pendentes', v: counts.PENDENTE, c:'#9CA3AF', bg:'#F9FAFB'},
+            {l:'Enviados',  v: counts.ENVIADO + counts.VALIDADO + counts.INVALIDO, c:'#8A6415', bg:'#FEF3C7'},
+          ].map(s => `
+            <div style="background:${s.bg};border-radius:8px;padding:14px;text-align:center">
+              <div style="font-size:26px;font-weight:800;color:${s.c}">${s.v}</div>
+              <div style="font-size:11px;color:${s.c};font-weight:600">${s.l}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- TABELA POR CONTA -->
+        ${accounts.map(acc => {
+          const pct = (() => {
+            let done = 0;
+            DOCS.forEach(doc => MONTHS.forEach((m,i) => {
+              const c = getCell(emp, cellKey(acc, doc, i));
+              if(c.status !== 'PENDENTE') done++;
+            }));
+            return Math.round(done / (DOCS.length * MONTHS.length) * 100);
+          })();
+
+          return `
+          <div style="margin-bottom:16px;border:1px solid #E1E5EB;border-radius:10px;overflow:hidden">
+            <div style="background:#F8FAFC;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E1E5EB">
+              <div>
+                <div style="font-size:12px;font-weight:700;color:#182233">${acc.vinculo}</div>
+                <div style="font-size:10px;color:#5C6675;font-family:monospace">${acc.conta}</div>
+              </div>
+              <div style="font-size:12px;font-weight:700;color:${pct===100?'#1D6E48':'#17495F'}">${pct}% validado</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:10px">
+              <thead>
+                <tr style="background:#F1F5F9">
+                  <th style="padding:6px 10px;text-align:left;color:#5C6675;font-weight:600;border-bottom:1px solid #E1E5EB;width:130px">Documento</th>
+                  ${MONTHS.map(m => `<th style="padding:4px 2px;text-align:center;color:#5C6675;font-weight:600;border-bottom:1px solid #E1E5EB">${m}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${DOCS.map((doc, di) => `
+                  <tr style="background:${di%2===0?'#fff':'#F8FAFC'}">
+                    <td style="padding:5px 10px;font-weight:500;color:#182233;border-bottom:1px solid #F1F5F9">${doc}</td>
+                    ${MONTHS.map((m,i) => {
+                      const c = getCell(emp, cellKey(acc, doc, i));
+                      return `<td style="padding:3px 2px;text-align:center;border-bottom:1px solid #F1F5F9">
+                        <span style="display:inline-block;padding:2px 4px;border-radius:4px;background:${statusBg(c.status)};color:${statusColor(c.status)};font-size:8px;font-weight:600;white-space:nowrap">
+                          ${statusLabel(c.status)}
+                        </span>
+                      </td>`;
+                    }).join('')}
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+        }).join('')}
+      </div>`;
+  });
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório ${empresa} — IMN & AMIP</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; color: #111; background: white; padding: 20px; font-size: 12px; }
+  @media print {
+    body { padding: 10px; }
+    @page { margin: 10mm; }
+  }
+</style>
+</head>
+<body>${corpoHTML}
+<div style="text-align:center;font-size:10px;color:#9CA3AF;border-top:1px solid #E1E5EB;padding-top:12px;margin-top:20px">
+  Painel IMN & AMIP · Relatório gerado em ${agora}
+</div>
+</body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 600);
+}
 
 // ── ATUALIZAÇÃO AUTOMÁTICA (a cada 3s) ───────────────────
 let usuarioInteragindo = false;
