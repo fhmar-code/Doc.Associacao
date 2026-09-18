@@ -729,7 +729,10 @@ function renderAccounts(){
         <div class="account-head ${isOpen?'open':''}">
           <span class="chev">▶</span>
           <div style="flex:1;min-width:0">
-            <div class="vinc">${displayVinculo}${isInativo ? '<span class="inactive-tag">INATIVA</span>' : ''}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div class="vinc">${displayVinculo}${isInativo ? '<span class="inactive-tag">INATIVA</span>' : ''}</div>
+              ${state.obsAccounts[state.company] && state.obsAccounts[state.company][id] ? '<span style="font-size:10px;color:#92400E;background:#FEF9C3;border:1px solid #FDE68A;border-radius:4px;padding:1px 6px;font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (state.obsAccounts[state.company][id]||'').replace(/"/g,"'") + '">📝 ' + (state.obsAccounts[state.company][id]||'').substring(0,30) + ((state.obsAccounts[state.company][id]||'').length > 30 ? '...' : '') + '</span>' : ''}
+            </div>
             <div class="conta">${acc.conta}</div>
           </div>
           <button class="btn-edit-acc" onclick="abrirEditAcc(event,'${encodeURIComponent(id)}')" title="Editar conta">✏️</button>
@@ -1227,8 +1230,9 @@ function gerarRelatorio(empresa) {
           <div style="margin-bottom:16px;border:1px solid #E1E5EB;border-radius:10px;overflow:hidden">
             <div style="background:#F8FAFC;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E1E5EB">
               <div>
-                <div style="font-size:12px;font-weight:700;color:#182233">${acc.vinculo}</div>
-                <div style="font-size:10px;color:#5C6675;font-family:monospace">${acc.conta}</div>
+                <div style="font-size:12px;font-weight:700;color:#182233">${(() => { const ed = state.editedAccounts && state.editedAccounts[emp] && state.editedAccounts[emp][accId(acc)]; return ed ? ed.vinculo : acc.vinculo; })()}</div>
+                <div style="font-size:10px;color:#5C6675;font-family:monospace">${(() => { const ed = state.editedAccounts && state.editedAccounts[emp] && state.editedAccounts[emp][accId(acc)]; return ed ? ed.conta : acc.conta; })()}</div>
+                ${(() => { const obs = state.obsAccounts && state.obsAccounts[emp] && state.obsAccounts[emp][accId(acc)]; return obs ? `<div style="font-size:10px;color:#92400E;margin-top:3px;font-style:italic">📝 ${obs}</div>` : ''; })()}
               </div>
               <div style="font-size:12px;font-weight:700;color:${pct===100?'#1D6E48':'#17495F'}">${pct}% validado</div>
             </div>
@@ -1255,11 +1259,6 @@ function gerarRelatorio(empresa) {
               </tbody>
             </table>
           </div>
-          ${(() => {
-            const obsKey = accId(acc);
-            const obs = state.obsAccounts && state.obsAccounts[emp] && state.obsAccounts[emp][obsKey];
-            return obs ? `<div style="margin-top:6px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:0 6px 6px 0;font-size:11px;color:#92400E"><strong>Observação:</strong> ${obs}</div>` : '';
-          })()}
         `;
         }).join('')}
       </div>`;
