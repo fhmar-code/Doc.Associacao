@@ -463,6 +463,9 @@ let state = {
   isAdmin: false,
   data: { IMN: {}, AMIP: {} },
   customAccounts: { IMN: [], AMIP: [] },
+  inactiveAccounts: { IMN: new Set(), AMIP: new Set() },
+  editedAccounts: { IMN: {}, AMIP: {} },
+  obsAccounts: { IMN: {}, AMIP: {} },
   search: "",
   openAccounts: new Set(),
   activePopover: null
@@ -575,6 +578,12 @@ async function loadCompany(company){
 
   const cRes = await storageGet("contas_extra_" + company, true);
   state.customAccounts[company] = cRes && cRes.value ? JSON.parse(cRes.value) : [];
+  const inRes = await storageGet('inativas_' + company, true);
+  state.inactiveAccounts[company] = new Set(inRes && inRes.value ? JSON.parse(inRes.value) : []);
+  const edRes = await storageGet('editadas_' + company, true);
+  state.editedAccounts[company] = edRes && edRes.value ? JSON.parse(edRes.value) : {};
+  const obsRes = await storageGet('obs_' + company, true);
+  state.obsAccounts[company] = obsRes && obsRes.value ? JSON.parse(obsRes.value) : {};
 }
 
 async function saveCompany(company){
@@ -680,6 +689,9 @@ function renderAccounts(){
   const accounts = getAccounts(state.company).filter(acc => {
     if(!state.search) return true;
     const s = state.search.toLowerCase();
+    const company = state.company;
+    const id = accId(acc);
+    if(state.inactiveAccounts[company] && state.inactiveAccounts[company].has(id)) return false;
     return acc.vinculo.toLowerCase().includes(s) || acc.conta.toLowerCase().includes(s);
   });
 
@@ -713,7 +725,11 @@ function renderAccounts(){
       <div class="account-card" data-accid="${encodeURIComponent(id)}">
         <div class="account-head ${isOpen?'open':''}">
           <span class="chev">▶</span>
-          <div><div class="vinc">${acc.vinculo}</div><div class="conta">${acc.conta}</div></div>
+          <div style="flex:1;min-width:0">
+            <div class="vinc">${displayVinculo}${isInativo ? '<span class="inactive-tag">INATIVA</span>' : ''}</div>
+            <div class="conta">${acc.conta}</div>
+          </div>
+          ${state.isAdmin ? `<button class="btn-edit-acc" onclick="abrirEditAcc(event,'${encodeURIComponent(id)}')" title="Editar conta">✏️</button>` : ''}
           <div class="account-progress">
             <div class="mini-bar"><div style="width:${pct}%"></div></div>
             <div class="mini-pct">${pct}%</div>
@@ -1030,6 +1046,70 @@ async function boot(){
 
 boot();
 
+// ── EDITAR CONTA ─────────────────────────────────────────
+let editAccCurrentId = null;
+
+function abrirEditAcc(e, encodedId) {
+  e.stopPropagation();
+  editAccCurrentId = decodeURIComponent(encodedId);
+  const company = state.company;
+  const allAccounts = getAccounts(company);
+  const acc = allAccounts.find(a => accId(a) === editAccCurrentId);
+  if (!acc) return;
+
+  const editado = state.editedAccounts[company][editAccCurrentId];
+  document.getElementById('editAccVinculo').value = editado ? editado.vinculo : acc.vinculo;
+  document.getElementById('editAccConta').value = editado ? editado.conta : acc.conta;
+  document.getElementById('editAccObs').value = state.obsAccounts[company][editAccCurrentId] || '';
+  document.getElementById('editAccSubtitle').textContent = `Conta: ${acc.conta}`;
+
+  const inativo = state.inactiveAccounts[company].has(editAccCurrentId);
+  const btnInativar = document.getElementById('btnInativarAcc');
+  btnInativar.textContent = inativo ? '✓ Reativar' : '⊘ Inativar';
+  btnInativar.style.background = inativo ? '#F0FDF4';
+  btnInativar.style.borderColor = inativo ? '#86EFAC' : '#FCA5A5';
+  btnInativar.style.color = inativo ? '#16A34A' : '#DC2626';
+
+  document.getElementById('editAccOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('editAccVinculo').focus(), 100);
+}
+
+function fecharEditAcc() {
+  document.getElementById('editAccOverlay').classList.remove('open');
+  editAccCurrentId = null;
+}
+
+function toggleInativarAcc() {
+  if (!editAccCurrentId) return;
+  const company = state.company;
+  if (state.inactiveAccounts[company].has(editAccCurrentId)) {
+    state.inactiveAccounts[company].delete(editAccCurrentId);
+  } else {
+    state.inactiveAccounts[company].add(editAccCurrentId);
+  }
+  // Salva lista de inativas
+  storageSet('inativas_' + company, JSON.stringify([...state.inactiveAccounts[company]]), true);
+  fecharEditAcc();
+  renderAccounts();
+}
+
+function salvarEditAcc() {
+  if (!editAccCurrentId) return;
+  const company = state.company;
+  const novoVinculo = document.getElementById('editAccVinculo').value.trim();
+  const novaConta = document.getElementById('editAccConta').value.trim();
+  if (!novoVinculo) { document.getElementById('editAccVinculo').style.borderColor = '#DC2626'; return; }
+
+  state.editedAccounts[company][editAccCurrentId] = { vinculo: novoVinculo, conta: novaConta };
+  storageSet('editadas_' + company, JSON.stringify(state.editedAccounts[company]), true);
+  const novaObs = document.getElementById('editAccObs').value.trim();
+  if (novaObs) state.obsAccounts[company][editAccCurrentId] = novaObs;
+  else delete state.obsAccounts[company][editAccCurrentId];
+  storageSet('obs_' + company, JSON.stringify(state.obsAccounts[company]), true);
+  fecharEditAcc();
+  renderAccounts();
+}
+
 // ── RELATÓRIO IMPRESSÃO ───────────────────────────────────
 function abrirModalRelatorio() {
   const modal = document.createElement('div');
@@ -1082,14 +1162,14 @@ function gerarRelatorio(empresa) {
     if(s === 'ENVIADO')   return '#8A6415';
     if(s === 'INVALIDO')  return '#9E2E2E';
     if(s === 'NAO_TEM')   return '#4B5461';
-    return '#9CA3AF';
+    return '#92400E'; // Pendente = amarelo escuro
   };
   const statusBg = (s) => {
     if(s === 'VALIDADO')  return '#D1FAE5';
     if(s === 'ENVIADO')   return '#FEF3C7';
     if(s === 'INVALIDO')  return '#FEE2E2';
     if(s === 'NAO_TEM')   return '#F1F5F9';
-    return '#F9FAFB';
+    return '#FEF9C3'; // Pendente = amarelo claro
   };
   const statusLabel = (s) => {
     if(s === 'VALIDADO')  return 'Validado';
@@ -1170,7 +1250,13 @@ function gerarRelatorio(empresa) {
                   </tr>`).join('')}
               </tbody>
             </table>
-          </div>`;
+          </div>
+          ${(() => {
+            const obsKey = accId(acc);
+            const obs = state.obsAccounts && state.obsAccounts[emp] && state.obsAccounts[emp][obsKey];
+            return obs ? `<div style="margin-top:6px;padding:8px 12px;background:#FFFBEB;border-left:3px solid #F59E0B;border-radius:0 6px 6px 0;font-size:11px;color:#92400E"><strong>Observação:</strong> ${obs}</div>` : '';
+          })()}
+        `;
         }).join('')}
       </div>`;
   });
@@ -1242,5 +1328,26 @@ setInterval(async () => {
   renderAll();
 }, 10000);
 </script>
+
+<!-- MODAL EDITAR CONTA -->
+<div class="edit-acc-overlay" id="editAccOverlay" onclick="if(event.target===this)fecharEditAcc()">
+  <div class="edit-acc-modal">
+    <div style="font-size:22px;margin-bottom:10px">✏️</div>
+    <h3>Editar Conta</h3>
+    <p id="editAccSubtitle">Altere o nome do vínculo ou da conta.</p>
+    <div class="edit-acc-label">Nome do Vínculo</div>
+    <input class="edit-acc-input" id="editAccVinculo" type="text" placeholder="Ex: RESERVA 02">
+    <div class="edit-acc-label">Número / Nome da Conta</div>
+    <input class="edit-acc-input" id="editAccConta" type="text" placeholder="Ex: 574722564-9">
+    <div class="edit-acc-label">Observação (aparece no relatório)</div>
+    <textarea class="edit-acc-input" id="editAccObs" placeholder="Ex: Conta encerrada em jul/2026, documentos aguardando..." rows="3" style="resize:vertical;font-family:inherit"></textarea>
+    <div class="edit-acc-btns">
+      <button class="btn-inativar" id="btnInativarAcc" onclick="toggleInativarAcc()">⊘ Inativar</button>
+      <button class="btn-cancelar-acc" onclick="fecharEditAcc()">Cancelar</button>
+      <button class="btn-salvar-acc" onclick="salvarEditAcc()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
